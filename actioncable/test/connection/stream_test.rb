@@ -37,18 +37,21 @@ class ActionCable::Connection::StreamTest < ActionCable::TestCase
 
   [ EOFError, Errno::ECONNRESET ].each do |closed_exception|
     test "closes socket on #{closed_exception}" do
-      run_in_eventmachine do
-        connection = open_connection
+      # StringIO couldn't be registered with NIO (and we don't need this functionality for the test)
+      @server.event_loop.stub(:attach, nil) do
+        run_in_eventmachine do
+          connection = open_connection
 
-        # Internal hax = :(
-        client = connection.websocket.send(:websocket)
-        rack_hijack_io = client.instance_variable_get("@stream").instance_variable_get("@rack_hijack_io")
-        rack_hijack_io.stub(:write, proc { raise(closed_exception, "foo") }) do
-          assert_called(client, :client_gone) do
-            client.write("boo")
+          # Internal hax = :(
+          client = connection.websocket.send(:websocket)
+          rack_hijack_io = client.instance_variable_get("@stream").instance_variable_get("@rack_hijack_io")
+          rack_hijack_io.stub(:write, proc { raise(closed_exception, "foo") }) do
+            assert_called(client, :client_gone) do
+              client.write("boo")
+            end
           end
+          assert_equal [], connection.errors
         end
-        assert_equal [], connection.errors
       end
     end
   end
